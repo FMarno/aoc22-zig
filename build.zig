@@ -11,36 +11,27 @@ pub fn build(b: *std.build.Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const one_exe = b.addExecutable("aoc22", "src/one.zig");
-    one_exe.setTarget(target);
-    one_exe.setBuildMode(mode);
-    one_exe.install();
+    var build_info = BuildInfo{ .builder = b, .target = target, .mode = mode };
+    add_day(&build_info, "one");
+    add_day(&build_info, "two");
+    add_day(&build_info, "three");
+}
 
-    const run_cmd = one_exe.run();
-    run_cmd.step.dependOn(b.getInstallStep());
+const BuildInfo = struct {
+    builder: *std.build.Builder,
+    target: std.zig.CrossTarget,
+    mode: std.builtin.Mode,
+};
 
-    const run_step = b.step("one", "Run the app");
+fn add_day(build_info: *BuildInfo, comptime name: []const u8) void {
+    const exe = build_info.builder.addExecutable(name, "src/" ++ name ++ ".zig");
+    exe.setTarget(build_info.target);
+    exe.setBuildMode(build_info.mode);
+    exe.install();
+
+    const run_cmd = exe.run();
+    run_cmd.step.dependOn(build_info.builder.getInstallStep());
+
+    const run_step = build_info.builder.step(name, "Run day " ++ name);
     run_step.dependOn(&run_cmd.step);
-
-    const two_exe = b.addExecutable("aoc22", "src/two.zig");
-    two_exe.setTarget(target);
-    two_exe.setBuildMode(mode);
-    two_exe.install();
-
-    const run_cmd_two = two_exe.run();
-    run_cmd_two.step.dependOn(b.getInstallStep());
-
-    const run_step_two = b.step("two", "Run the app");
-    run_step_two.dependOn(&run_cmd_two.step);
-
-    const three_exe = b.addExecutable("aoc22", "src/three.zig");
-    three_exe.setTarget(target);
-    three_exe.setBuildMode(mode);
-    three_exe.install();
-
-    const run_cmd_three = three_exe.run();
-    run_cmd_three.step.dependOn(b.getInstallStep());
-
-    const run_step_three = b.step("three", "Run the app");
-    run_step_three.dependOn(&run_cmd_three.step);
 }

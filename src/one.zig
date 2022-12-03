@@ -50,5 +50,5 @@ pub fn main() !void {
         sum += v;
     }
 
-    std.debug.print("{}\n", .{sum});
+    std.debug.print("1: {}\n2: {}\n", .{ max[0], sum });
 }
