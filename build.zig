@@ -32,4 +32,15 @@ pub fn build(b: *std.build.Builder) void {
 
     const run_step_two = b.step("two", "Run the app");
     run_step_two.dependOn(&run_cmd_two.step);
+
+    const three_exe = b.addExecutable("aoc22", "src/three.zig");
+    three_exe.setTarget(target);
+    three_exe.setBuildMode(mode);
+    three_exe.install();
+
+    const run_cmd_three = three_exe.run();
+    run_cmd_three.step.dependOn(b.getInstallStep());
+
+    const run_step_three = b.step("three", "Run the app");
+    run_step_three.dependOn(&run_cmd_three.step);
 }
