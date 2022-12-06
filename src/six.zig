@@ -40,16 +40,17 @@ pub fn main() !void {
     var letters = try reader.readAllAlloc(allocator, 4294967296);
     defer allocator.free(letters);
 
-    var ring = UniqueStream(4).new();
-    ring.add(letters[0]);
-    ring.add(letters[1]);
-    ring.add(letters[2]);
-
-    var idx: usize = 3;
-    for (letters[3..]) |l| {
-        ring.add(l);
-        if (ring.unique()) break;
-        idx += 1;
+    const len = 14;
+    var message_ring = UniqueStream(len).new();
+    for (letters[0 .. len - 1]) |l| {
+        message_ring.add(l);
     }
-    std.debug.print("{}\n", .{idx + 1});
+
+    for (letters[len - 1 ..]) |l, idx| {
+        message_ring.add(l);
+        if (message_ring.unique()) {
+            std.debug.print("{}\n", .{len + idx});
+            break;
+        }
+    }
 }
