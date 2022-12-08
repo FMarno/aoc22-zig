@@ -27,6 +27,21 @@ fn UniqueStream(comptime size: usize) type {
     };
 }
 
+fn solution(comptime size: usize, letters: []const u8) usize {
+    var message_ring = UniqueStream(size).new();
+    for (letters[0 .. size - 1]) |l| {
+        message_ring.add(l);
+    }
+
+    for (letters[size - 1 ..]) |l, idx| {
+        message_ring.add(l);
+        if (message_ring.unique()) {
+            return size + idx;
+        }
+    }
+    unreachable;
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -35,22 +50,8 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile("input/six", .{ .mode = .read_only });
     defer file.close();
 
-    var reader = file.reader();
-
-    var letters = try reader.readAllAlloc(allocator, 4294967296);
+    var letters = try file.reader().readAllAlloc(allocator, 4294967296);
     defer allocator.free(letters);
 
-    const len = 14;
-    var message_ring = UniqueStream(len).new();
-    for (letters[0 .. len - 1]) |l| {
-        message_ring.add(l);
-    }
-
-    for (letters[len - 1 ..]) |l, idx| {
-        message_ring.add(l);
-        if (message_ring.unique()) {
-            std.debug.print("{}\n", .{len + idx});
-            break;
-        }
-    }
+    std.debug.print("1: {}\n2: {}\n", .{ solution(4, letters), solution(14, letters) });
 }
