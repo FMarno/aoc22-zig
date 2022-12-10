@@ -105,7 +105,7 @@ pub fn main() !void {
             if (std.mem.eql(u8, line[0..3], "dir")) {
                 var dir = try dirs.addOne();
                 dir.* = Dir{
-                    // location should stay alive with lines
+                    // name should stay alive with lines
                     .name = line[4..],
                     .dirs = null,
                     .files = null,
