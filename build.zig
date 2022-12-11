@@ -20,7 +20,9 @@ pub fn build(b: *std.build.Builder) void {
     add_day(&build_info, "six");
     add_day(&build_info, "seven");
     add_day(&build_info, "eight");
+
     add_day(&build_info, "ten");
+    add_day(&build_info, "eleven");
 }
 
 const BuildInfo = struct {
