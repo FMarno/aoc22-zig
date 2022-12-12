@@ -1,166 +1,89 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 const parseUnsigned = std.fmt.parseUnsigned;
+const print = std.debug.print;
 
 const Operator = enum { add, mult, square };
 
-const Item = u64;
+// The monkey only questions if something divides equally by a constant value
+// so we only need to keep the remainder up to data
+// but we do need to track it for all monkies at all times
+// clever monkies!
+const Remainders = []u32;
 
-const primes = Item{ 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 };
-
-const PrimeFactor = struct {
-    value: Item,
-    power: i32,
-};
-
-const PrimeFactorisation = struct {
+const Monkey = struct {
     const Self = @This();
-    factors: std.ArrayList(PrimeFactor),
+    items: std.ArrayList(Remainders),
+    divisors: []u32,
+    op: Operator,
+    opValue: u32,
+    remainder_idx: usize,
+    true_monkey: usize,
+    false_monkey: usize,
+    inspections: u32,
 
-    fn init(scalar:Item, allocator:std.mem.Allocator) Self {
-        var new = PrimeFactorisation{
-            .factors = std.ArrayList(PrimeFactor).init(allocator),
+    // still need to setup items and divisors after this
+    fn init(allocator: std.mem.Allocator, op: Operator, opValue: u32, remainder_idx: usize, true_monkey: usize, false_monkey: usize) Self {
+        return Self{
+            .items = std.ArrayList(Remainders).init(allocator),
+            .divisors = undefined,
+            .op = op,
+            .opValue = opValue,
+            .remainder_idx = remainder_idx,
+            .true_monkey = true_monkey,
+            .false_monkey = false_monkey,
+            .inspections = 0,
         };
-        // start at 1
-        new.factors.append(PrimeFactorisation{.value=2,.power=0});
-        new.multByScalar(scalar);
-        return new;
-    }
-    fn deinit(self : *Self) void {
-        self.factors.deinit();
     }
 
-    fn mult(self: *Self, other: Self) !void {
-        for (other.factors.items) |factor| {
-            self.multByPrime(factor);
+    fn deinit(self: *Self) void {
+        for (self.items.items) |i| {
+            self.items.allocator.free(i);
         }
+        self.items.deinit();
     }
 
-    fn square(self: *Self) void {
-        for (self.factors.items) |*own_factor| {
-            own_factor.power *= 2;
-        }
+    fn throw_item(self: *Self, item: Remainders) !void {
+        try self.items.append(item);
     }
 
-    fn multByPrime(self: *Self, prime: PrimeFactor) void {
-        for (self.factors.items) |*own_factor| {
-            if (prime.value == own_factor.value) {
-                own_factor.power += prime.power;
-                return;
-            }
-            // can't find factor
-            try self.factors.append(prime);
-        }
-    }
-
-    fn multByScalar(self: *Self, scalar: Item) void {
-        var s = scalar;
-        for (primes) |prime| {
-            while (s % prime == 0) {
-                self.multByPrime(PrimeFactor{ .value = prime, .power = 1 });
-                s = s/prime;
-            }
-            if (s == 1) return;
-        }
-        unreachable;
-    }
-
-    fn add(self: *Self, other: Self) !void {
-        // (2*(3^5)*5) + (3*7) = 3*(2*5*(3^4)+7) = 3 * 817 = 3*19*43
-        var lhs = try self.factors.clone();
-        var rhs = try other.factors.clone();
-        var multiplier = try std.Allocator(Item).init(lhs.allocator);
-
-        for (lhs.items) |*lfactor| {
-            for (lhs.items) |*rfactor| {
-                if (lfactor.value == rfactor.value) {
-                    const diff = std.math.absInt(lfactor.power - rfactor.power);
-                    lfactor.power -= diff;
-                    rfactor.power -= diff;
-                    multiplier.append(PrimeFactor{ .value = lfactor.value, .power = diff });
-                    break;
+    fn process_items(self: *Self, other_monkeys: []Self) !void {
+        while (self.items.items.len != 0) {
+            var remainders = self.items.orderedRemove(0);
+            for (self.divisors) |divisor, idx| {
+                switch (self.op) {
+                    .add => remainders[idx] = (remainders[idx] + self.opValue) % divisor,
+                    .mult => remainders[idx] = (remainders[idx] * self.opValue) % divisor,
+                    .square => remainders[idx] = (remainders[idx] * remainders[idx]) % divisor,
                 }
             }
+            const target_monkey = if (remainders[self.remainder_idx] == 0) self.true_monkey else self.false_monkey;
+            try other_monkeys[target_monkey].throw_item(remainders);
+            self.inspections += 1;
         }
+    }
 
-        // actually calculate the numbers
-        // hopefully small enough
-        var sum: Item = 0;
-        for (lhs.items) |factor| {
-            sum += std.math.pow(Item, factor.value, factor.power);
-        }
-        for (rhs.items) |factor| {
-            sum += std.math.pow(Item, factor.value, factor.power);
-        }
-
-        // prime factorize
-        self.multByScalar(sum);
+    fn greaterThan(ctx: @TypeOf(.{}), lhs: Self, rhs: Self) bool {
+        _ = ctx;
+        return lhs.inspections > rhs.inspections;
     }
 };
 
-fn Monkey(comptime part1: bool) type {
-    return struct {
-        const Self = @This();
-        items: std.ArrayList(Item),
-        op: Operator,
-        opValue: Item,
-        testValue: Item,
-        true_monkey: usize,
-        false_monkey: usize,
-        inspections: u64,
-
-        fn init(allocator: std.mem.Allocator, op: Operator, opValue: Item, testValue: Item, true_monkey: usize, false_monkey: usize) Self {
-            return Self{
-                .items = std.ArrayList(Item).init(allocator),
-                .op = op,
-                .opValue = opValue,
-                .testValue = testValue,
-                .true_monkey = true_monkey,
-                .false_monkey = false_monkey,
-                .inspections = 0,
-            };
-        }
-
-        fn deinit(self: *Self) void {
-            self.items.deinit();
-        }
-
-        fn throw_item(self: *Self, item: Item) !void {
-            try self.items.append(item);
-        }
-
-        fn process_items(self: *Self, other_monkeys: []Self) !void {
-            while (self.items.items.len != 0) {
-                const item = self.items.orderedRemove(0);
-                std.debug.print("{} {} {}\n", .{ item, self.op, self.opValue });
-                var worry = switch (self.op) {
-                    .add => item + self.opValue,
-                    .mult => item * self.opValue,
-                    .square => item * item,
-                };
-                if (part1) {
-                    worry = worry / 3;
-                }
-                const target_monkey = if (worry % self.testValue == 0) self.true_monkey else self.false_monkey;
-                try other_monkeys[target_monkey].throw_item(worry);
-                self.inspections += 1;
-            }
-        }
-
-        fn greaterThan(ctx: @TypeOf(.{}), lhs: Self, rhs: Self) bool {
-            _ = ctx;
-            return lhs.inspections > rhs.inspections;
-        }
-    };
-}
-
-fn run(comptime part1: bool, allocator: std.mem.Allocator, lines: []const []u8) !Item {
-    var monkies = std.ArrayList(Monkey(part1)).init(allocator);
+fn run(allocator: std.mem.Allocator, lines: []const []u8) !u64 {
+    var monkies = std.ArrayList(Monkey).init(allocator);
     defer {
         for (monkies.items) |*monkey| {
             monkey.deinit();
         }
         monkies.deinit();
+    }
+    var divisors = std.ArrayList(u32).init(allocator);
+    var items = std.ArrayList(std.ArrayList(u32)).init(allocator);
+    defer {
+        for (items.items) |*i| {
+            i.deinit();
+        }
+        items.deinit();
     }
 
     var idx: usize = 0;
@@ -171,50 +94,64 @@ fn run(comptime part1: bool, allocator: std.mem.Allocator, lines: []const []u8) 
         //   Test: divisible by 11
         //     If true: throw to monkey 2
         //     If false: throw to monkey 3
-        const items = lines[idx + 1]["  Starting items: ".len..];
+        const starting_items = lines[idx + 1]["  Starting items: ".len..];
         const opValueStr = lines[idx + 2]["  Operation: new = old * ".len..];
         var op: Operator = undefined;
-        var opValue: Item = undefined;
+        var opValue: u32 = undefined;
         if (std.mem.eql(u8, opValueStr, "old")) {
             op = .square;
+            opValue = 1;
         } else {
             op = if (lines[idx + 2]["  Operation: new = old ".len] == '*') .mult else .add;
-            opValue = try parseUnsigned(Item, opValueStr, 10);
+            opValue = try parseUnsigned(u32, opValueStr, 10);
         }
-        const testValue = try parseUnsigned(Item, lines[idx + 3]["  Test: divisible by ".len..], 10);
+        const testValue = try parseUnsigned(u32, lines[idx + 3]["  Test: divisible by ".len..], 10);
+        try divisors.append(testValue);
 
         const true_monkey = try parseUnsigned(usize, lines[idx + 4]["    If true: throw to monkey ".len..], 10);
         const false_monkey = try parseUnsigned(usize, lines[idx + 5]["    If false: throw to monkey ".len..], 10);
 
-        var monkey = Monkey(part1).init(allocator, op, opValue, testValue, true_monkey, false_monkey);
+        var monkey = Monkey.init(allocator, op, opValue, idx / 7, true_monkey, false_monkey);
+
+        var monkey_items = std.ArrayList(u32).init(allocator);
 
         var pos: usize = 0;
-        while (std.mem.indexOfPos(u8, items, pos, ",")) |comma| {
-            const new_item = try parseUnsigned(Item, items[pos..comma], 10);
-            try monkey.throw_item(new_item);
+        while (std.mem.indexOfPos(u8, starting_items, pos, ",")) |comma| {
+            const new_item = try parseUnsigned(u32, starting_items[pos..comma], 10);
+            try monkey_items.append(new_item);
             pos = comma + 2;
         }
-        const final_item = try parseUnsigned(Item, items[pos..], 10);
-        try monkey.throw_item(final_item);
+        const final_item = try parseUnsigned(u32, starting_items[pos..], 10);
+        try monkey_items.append(final_item);
+        try items.append(monkey_items);
+
         try monkies.append(monkey);
     }
 
-    const loops = if (part1) 20 else 10000;
+    var divisor_slice = divisors.toOwnedSlice();
+    defer allocator.free(divisor_slice);
+    for (monkies.items) |*monkey| {
+        monkey.divisors = divisor_slice;
+        for (items.items[monkey.remainder_idx].items) |item| {
+            var remainders = try allocator.alloc(u32, divisor_slice.len);
+            std.mem.set(u32, remainders, item);
+            try monkey.throw_item(remainders);
+        }
+    }
+
+    const loops = 10000;
 
     var i: usize = 0;
     while (i < loops) : (i += 1) {
+        //std.debug.print("starting loop {}\n", .{i});
         for (monkies.items) |*monkey| {
             try monkey.process_items(monkies.items);
         }
     }
 
-    std.sort.sort(Monkey(part1), monkies.items, .{}, Monkey(part1).greaterThan);
+    std.sort.sort(Monkey, monkies.items, .{}, Monkey.greaterThan);
 
-    for (monkies.items) |monkey| {
-        std.debug.print("{}\n", .{monkey.inspections});
-    }
-
-    const monkey_business = monkies.items[0].inspections * monkies.items[1].inspections;
+    const monkey_business = @intCast(u64, monkies.items[0].inspections) * @intCast(u64, monkies.items[1].inspections);
     return monkey_business;
 }
 
@@ -223,10 +160,10 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const lines = try utils.readLines(allocator, "input/test");
+    const lines = try utils.readLines(allocator, "input/eleven");
     defer utils.freeLines(allocator, lines);
 
-    const one = try run(true, allocator, lines);
+    const one = try run(allocator, lines);
     //const two = try run(false, allocator, lines);
 
     std.debug.print("1: {}\n2: {}\n", .{ one, one });
