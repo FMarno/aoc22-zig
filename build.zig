@@ -23,6 +23,7 @@ pub fn build(b: *std.build.Builder) void {
 
     add_day(&build_info, "ten");
     add_day(&build_info, "eleven");
+    add_day(&build_info, "twelve");
 }
 
 const BuildInfo = struct {
@@ -38,7 +39,7 @@ fn add_day(build_info: *BuildInfo, comptime name: []const u8) void {
     exe.install();
 
     const run_cmd = exe.run();
-    run_cmd.step.dependOn(build_info.builder.getInstallStep());
+    //run_cmd.step.dependOn(build_info.builder.getInstallStep());
 
     const run_step = build_info.builder.step(name, "Run day " ++ name);
     run_step.dependOn(&run_cmd.step);

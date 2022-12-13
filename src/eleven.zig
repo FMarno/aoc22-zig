@@ -5,6 +5,7 @@ const print = std.debug.print;
 
 const Operator = enum { add, mult, square };
 
+// Spoilers:
 // The monkey only questions if something divides equally by a constant value
 // so we only need to keep the remainder up to data
 // but we do need to track it for all monkies at all times
@@ -52,6 +53,8 @@ const Monkey = struct {
             var remainders = self.items.orderedRemove(0);
             for (self.divisors) |divisor, idx| {
                 switch (self.op) {
+                    // I did a bit of math to prove this was all ok,
+                    // but couldn't figure out the /3.
                     .add => remainders[idx] = (remainders[idx] + self.opValue) % divisor,
                     .mult => remainders[idx] = (remainders[idx] * self.opValue) % divisor,
                     .square => remainders[idx] = (remainders[idx] * remainders[idx]) % divisor,
@@ -143,7 +146,6 @@ fn run(allocator: std.mem.Allocator, lines: []const []u8) !u64 {
 
     var i: usize = 0;
     while (i < loops) : (i += 1) {
-        //std.debug.print("starting loop {}\n", .{i});
         for (monkies.items) |*monkey| {
             try monkey.process_items(monkies.items);
         }
@@ -163,8 +165,7 @@ pub fn main() !void {
     const lines = try utils.readLines(allocator, "input/eleven");
     defer utils.freeLines(allocator, lines);
 
-    const one = try run(allocator, lines);
-    //const two = try run(false, allocator, lines);
+    const two = try run(allocator, lines);
 
-    std.debug.print("1: {}\n2: {}\n", .{ one, one });
+    std.debug.print("1: TODO\n2: {}\n", .{ two });
 }
