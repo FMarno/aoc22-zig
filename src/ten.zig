@@ -46,7 +46,7 @@ pub fn main() !void {
             const idx = row * 40 + col;
             const x = values[idx];
             const distance = try std.math.absInt(@intCast(i32, col) - x);
-            const c :u8 = if (distance < 2) '#' else '.';
+            const c: u8 = if (distance < 2) '#' else '.';
             std.debug.print("{c}", .{c});
         }
         std.debug.print("\n", .{});

@@ -167,5 +167,5 @@ pub fn main() !void {
 
     const two = try run(allocator, lines);
 
-    std.debug.print("1: TODO\n2: {}\n", .{ two });
+    std.debug.print("1: TODO\n2: {}\n", .{two});
 }

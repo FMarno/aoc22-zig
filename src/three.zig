@@ -1,32 +1,9 @@
 const std = @import("std");
 
-const Rucksake = struct {
-    const Self = @This();
-    set: u52,
-
-    fn new() Self {
-        return Self{
-            .set = 0,
-        };
-    }
-
-    fn add(self: *Self, c: u8) void {
-        const idx = if (c <= 'Z') c - 'A' + 26 else c - 'a';
-        self.set = self.set | (@as(u52, 1) << @intCast(u6, idx));
-    }
-
-    fn common_items(self: Self, other: Self) Self {
-        return Self{ .set = self.set & other.set };
-    }
-
-    fn all_items(self: Self, other: Self) Self {
-        return Self{ .set = self.set | other.set };
-    }
-
-    fn priority(self: Self) u32 {
-        return @ctz(self.set) + 1;
-    }
-};
+const Rucksack = std.bit_set.IntegerBitSet(52);
+fn find_idx(c: u8) usize {
+    return if (c <= 'Z') c - 'A' + 26 else c - 'a';
+}
 
 pub fn main() !void {
     var buf: [1024]u8 = undefined;
@@ -36,10 +13,10 @@ pub fn main() !void {
 
     var reader = file.reader();
 
-    var one_sum: u32 = 0;
-    var two_sum: u32 = 0;
+    var one_sum: usize = 0;
+    var two_sum: usize = 0;
 
-    var common = Rucksake.new();
+    var common_alt: Rucksack = undefined;
     var group_idx: usize = 0;
 
     while (reader.readUntilDelimiterOrEof(buf[0..], '\n')) |maybe_read| {
@@ -49,30 +26,36 @@ pub fn main() !void {
             const line = if (read[read.len - 1] == '\r') read[0 .. read.len - 1] else read;
 
             std.debug.assert(line.len & 1 == 0);
-            var first = Rucksake.new();
-            var second = Rucksake.new();
-            var i: usize = 0;
-            while (i < line.len / 2) : (i += 1) {
-                first.add(line[i]);
+            var first = Rucksack.initEmpty();
+            var second = Rucksack.initEmpty();
+            { // part 1
+                var i: usize = 0;
+                while (i < line.len / 2) : (i += 1) {
+                    first.set(find_idx(line[i]));
+                }
+                while (i < line.len) : (i += 1) {
+                    second.set(find_idx(line[i]));
+                }
+                var bag_intersect = first;
+                bag_intersect.setIntersection(second);
+                one_sum += bag_intersect.findFirstSet().? + 1;
             }
-            while (i < line.len) : (i += 1) {
-                second.add(line[i]);
+            { // part2
+                var bag_union = first;
+                bag_union.setUnion(second);
+                if (group_idx == 0) {
+                    common_alt = bag_union;
+                } else {
+                    common_alt.setIntersection(bag_union);
+                }
+                group_idx += 1;
             }
-            one_sum += first.common_items(second).priority();
-
-            common = if (group_idx == 0) first.all_items(second) else common.common_items(first.all_items(second));
-            group_idx += 1;
             if (group_idx == 3) {
-                two_sum += common.priority();
+                two_sum += common_alt.findFirstSet().? + 1;
                 group_idx = 0;
-                common = Rucksake.new();
             }
         } else break;
-    } else |err| {
-        if (err != error.EndOfStream) {
-            @panic("unexpected error");
-        }
-    }
+    } else |_| @panic("unexpected error");
 
-    std.debug.print("1: {}\n2: {}\n", .{ one_sum, two_sum });
+    try std.io.getStdOut().writer().print("1: {}\n2: {}\n", .{ one_sum, two_sum });
 }

@@ -6,13 +6,15 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const lines = try utils.readLines(allocator, "input/one");
-    defer utils.freeLines(allocator, lines);
+    var input = try utils.readAll(allocator, "input/one");
+    defer allocator.free(input);
+
+    var lines = std.mem.split(u8, input, "\n");
 
     var max = [3]u32{ 0, 0, 0 };
     var current: u32 = 0;
 
-    for (lines) |line| {
+    while (lines.next()) |line| {
         if (line.len == 0) {
             if (current > max[0]) {
                 max[2] = max[1];

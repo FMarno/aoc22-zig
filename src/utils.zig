@@ -1,5 +1,13 @@
 const std = @import("std");
 
+pub fn readAll(allocator: std.mem.Allocator, comptime file_path: []const u8) ![]u8 {
+    const file = try std.fs.cwd().openFile(file_path, .{ .mode = .read_only });
+    defer file.close();
+    var reader = file.reader();
+
+    return reader.readAllAlloc(allocator, 1024 * 1024);
+}
+
 pub fn readLines(allocator: std.mem.Allocator, comptime file_path: []const u8) ![][]u8 {
     var lines = std.ArrayList([]u8).init(allocator);
 
