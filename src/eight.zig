@@ -98,11 +98,58 @@ pub fn main() !void {
     for (visible) |row| {
         for (row) |tree| {
             count += if (tree) 1 else 0;
-            // const char :u8 =if (tree) '#' else '.';
-            // std.debug.print("{c}", .{char});
         }
-        // std.debug.print("\n", .{});
     }
 
     std.debug.print("1: {}\n", .{count});
+
+    var max: u32 = 0;
+    var row: usize = 0;
+    while (row < height) : (row += 1) {
+        var col: usize = 0;
+        while (col < width) : (col += 1) {
+            {
+                const tree_h = lines[row][col];
+                var right: u32 = 0;
+                var left: u32 = 0;
+                var up: u32 = 0;
+                var down: u32 = 0;
+                { // right
+                    var c = col + 1;
+                    while (c < width) : (c += 1) {
+                        right += 1;
+                        if (lines[row][c] >= tree_h) break;
+                    }
+                }
+                { // down
+                    var r = row + 1;
+                    while (r < height) : (r += 1) {
+                        down += 1;
+                        if (lines[r][col] >= tree_h) break;
+                    }
+                }
+                { // left
+                    var c = col;
+                    while (c != 0) {
+                        c -= 1;
+                        left += 1;
+                        if (lines[row][c] >= tree_h) break;
+                    }
+                }
+                { // up
+                    var r = row;
+                    while (r != 0) {
+                        r -= 1;
+                        up += 1;
+                        if (lines[r][col] >= tree_h) break;
+                    }
+                }
+                const score = right * left * up * down;
+                if (score > max) {
+                    max = score;
+                }
+            }
+        }
+    }
+    std.debug.print("2: {}\n", .{max});
 }
