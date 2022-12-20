@@ -14,10 +14,7 @@ fn follow(lead: Pos, tail: *Pos) void {
     tail.* = Pos{ .x = tail.x + move.x, .y = tail.y + move.y };
 }
 
-fn run(comptime tail_len: usize, allocator: std.mem.Allocator, all: []u8) !u32 {
-    var pos_set = std.AutoHashMap(Pos, void).init(allocator);
-    defer pos_set.deinit();
-
+fn run(comptime tail_len: usize, all: []u8, pos_set: *std.AutoHashMap(Pos, void)) !u32 {
     var lines = std.mem.split(u8, all, "\n");
 
     var head = Pos{ .x = 0, .y = 0 };
@@ -50,12 +47,24 @@ fn run(comptime tail_len: usize, allocator: std.mem.Allocator, all: []u8) !u32 {
 }
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    //    var gpa = std.heap.GeneralPurposeAllocator(.{.enable_memory_limit=true}){};
+    //    defer _ = gpa.deinit();
+    //    const allocator = gpa.allocator();
+    var buff: [1024 * 512]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buff);
+    const allocator = fba.allocator();
 
     const all = try utils.readAll(allocator, "input/nine");
     defer allocator.free(all);
 
-    print("1:{}\n2:{}\n", .{ try run(1, allocator, all), try run(9, allocator, all) });
+    var pos_set = std.AutoHashMap(Pos, void).init(allocator);
+    defer pos_set.deinit();
+
+    const before = std.time.nanoTimestamp();
+    const one = try run(1, all, &pos_set);
+    pos_set.clearRetainingCapacity();
+    const two = try run(9, all, &pos_set);
+    const after = std.time.nanoTimestamp();
+
+    print("1:{}\n2:{}\ntime:{} ns", .{ one, two, after - before });
 }
