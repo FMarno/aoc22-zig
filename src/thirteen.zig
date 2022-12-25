@@ -10,17 +10,7 @@ const ItemTag = enum {
     list,
 };
 
-const Item = union(ItemTag) {
-    int: u32,
-    list: []Item,
-};
-
-fn println(prefix: []const u8, line: []const u8) void {
-    print("{s}: {s}\n", .{ prefix, line });
-}
-
 fn getType(line: []const u8) ItemTag {
-    //if (line.len == 0) return null;
     std.debug.assert(line.len > 0);
     if (line[0] == '[') return .list;
     std.debug.assert(isDigit(line[0]));
@@ -33,6 +23,7 @@ fn readInt(line: []const u8) u32 {
 
 const ItemIter = struct {
     line: []const u8,
+
     fn next(self: *ItemIter) ?[]const u8 {
         if (self.line.len == 0) return null;
         const ty = getType(self.line);
@@ -92,45 +83,63 @@ fn compareList(lhs: []const u8, rhs: []const u8) Order {
 }
 
 fn compareIntList(item: []const u8, list: []const u8) Order {
-    print("CompareIntList {s} vs {s}\n", .{ item, list });
     var iter = ItemIter{ .line = list[1 .. list.len - 1] };
     const demote = iter.next() orelse return .gt;
-    return compareItem(item, demote);
 
+    return switch (compareItem(item, demote)) {
+        .eq => if (iter.next()) |_| .lt else .eq,
+        else => |x| x,
+    };
 }
 
 fn compareItem(lhs: []const u8, rhs: []const u8) Order {
-    print("Compare {s} vs {s}\n", .{ lhs, rhs });
     const lhs_type = getType(lhs);
     const rhs_type = getType(rhs);
 
-    const result = blk: {
-        if (lhs_type == rhs_type) {
-            if (lhs_type == .int) {
-                const lhs_value = readInt(lhs);
-                const rhs_value = readInt(rhs);
-                break :blk std.math.order(lhs_value, rhs_value);
-            } else {
-                break :blk compareList(lhs, rhs);
-            }
+    if (lhs_type == rhs_type) {
+        if (lhs_type == .int) {
+            const lhs_value = readInt(lhs);
+            const rhs_value = readInt(rhs);
+            return std.math.order(lhs_value, rhs_value);
         } else {
-            if (lhs_type == .int) return compareIntList(lhs, rhs);
-            const r: Order = switch (compareIntList(rhs, lhs)) {
-                .lt => .gt,
-                .gt => .lt,
-                .eq => .eq,
-            };
-            break :blk r;
+            return compareList(lhs, rhs);
         }
-    };
-    print("compare {s} and {s} = {}\n", .{ lhs, rhs, result });
-    return result;
+    } else {
+        if (lhs_type == .int) return compareIntList(lhs, rhs);
+        const r: Order = switch (compareIntList(rhs, lhs)) {
+            .lt => .gt,
+            .gt => .lt,
+            .eq => .eq,
+        };
+        return r;
+    }
+}
+
+fn lessThan(ctx: @TypeOf(.{}), lhs: []const u8, rhs: []const u8) bool {
+    _ = ctx;
+    return compareItem(lhs, rhs) == .lt;
 }
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+
+    var packets = std.ArrayList([]u8).init(allocator);
+    defer {
+        for (packets.items) |packet| {
+            allocator.free(packet);
+        }
+        packets.deinit();
+    }
+    var key1 = "[[2]]";
+    var key2 = "[[6]]";
+    var k1 = try allocator.alloc(u8, key1.len);
+    var k2 = try allocator.alloc(u8, key2.len);
+    std.mem.copy(u8, k1, key1);
+    std.mem.copy(u8, k2, key2);
+    try packets.append(k1);
+    try packets.append(k2);
 
     var all = try utils.readAll(allocator, "input/thirteen");
     defer allocator.free(all);
@@ -141,13 +150,55 @@ pub fn main() !void {
     while (true) : (idx += 1) {
         const lhs = lines.next() orelse break;
         const rhs = lines.next().?;
-        print("\n", .{});
         switch (compareItem(lhs, rhs)) {
             .lt => sum += idx + 1,
             .gt => {},
             .eq => unreachable,
         }
+        var l_line = try allocator.alloc(u8, lhs.len);
+        std.mem.copy(u8, l_line, lhs);
+        try packets.append(l_line);
+        var r_line = try allocator.alloc(u8, rhs.len);
+        std.mem.copy(u8, r_line, rhs);
+        try packets.append(r_line);
     }
 
-    std.debug.print("1: {}\n2: {}\n", .{ sum, sum });
+    std.sort.sort([]u8, packets.items, .{}, lessThan);
+    var idx1: usize = undefined;
+    var idx2: usize = undefined;
+
+    for (packets.items) |packet, i| {
+        if (std.mem.eql(u8, packet, key1)) {
+            idx1 = i + 1;
+            break;
+        }
+    }
+    for (packets.items[idx1 - 1 ..]) |packet, i| {
+        if (std.mem.eql(u8, packet, key2)) {
+            idx2 = idx1 + i;
+            break;
+        }
+    }
+
+    print("1: {}\n2: {}\n", .{ sum, idx1 * idx2 });
+}
+
+const expect = std.testing.expect;
+test "testing" {
+    try expect(compareItem("[1,2,3]", "[[1],[2],[3]]") == .eq);
+    try expect(compareItem("[1]", "[[[[],2],2],2]") == .gt);
+    try expect(compareItem("[2]", "[[[[]]]]") == .gt);
+    try expect(compareItem("[1,1,3,1,1]", "[1,1,5,1,1]") == .lt);
+    try expect(compareItem("[[1],[2,3,4]]", "[[1],4]") == .lt);
+    try expect(compareItem("[9]", "[[8,7,6]]") == .gt);
+    try expect(compareItem("[[4,4],4,4]", "[[4,4],4,4,4]") == .lt);
+    try expect(compareItem("[7,7,7,7]", "[7,7,7]") == .gt);
+    try expect(compareItem("[]", "[3]") == .lt);
+    try expect(compareItem("[[[]]]", "[[]]") == .gt);
+    try expect(compareItem("[1,[2,[3,[4,[5,6,7]]]],8,9]", "[1,[2,[3,[4,[5,6,0]]]],8,9]") == .gt);
+}
+
+test "catch me out" {
+    try expect(compareItem("[[[4,6,9,3,1],4,[3],[2,4,[6,10]],6],[]]", "[[4,8],[[],6],[3,4]]") == .gt);
+    try expect(compareItem("[[6,2,[[],0,[1]]],[[[2],[6,2,8,5,0],[6,6,5,3],[8,10,8,5,1],[]],[[],[10,2,7],[7,3,4],3],[[3],1],8],[8,[7],[],7],[[[0,4,5,3,0],[0,10]],7]]", "[[[[6,9]],0,[1,[6,6,4,6,5],8],[2,6,0,[3]],[]],[[2,1],[8,2,8,3,6],5,10],[1,8],[1,8,1],[[10,[5,5,4,8,2],1,[]]]]") == .lt);
 }
