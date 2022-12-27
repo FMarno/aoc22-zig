@@ -26,9 +26,9 @@ fn addPoint(allocator: std.mem.Allocator, map: *MapType, point: Point) !void {
     try res.value_ptr.*.append(point.y);
 }
 
-fn indexOfGreaterThan(list: []pointTy, val: pointTy) ?usize {
+fn indexOfWall(list: []pointTy, val: pointTy) ?usize {
     for (list) |v, idx| {
-        if (v > val) return idx;
+        if (v >= val) return idx;
     }
     return null;
 }
@@ -42,8 +42,9 @@ fn dropSand(map: *MapType) !bool {
     while (true) {
         var col = map.getPtr(next.x) orelse return false;
         // find next value less than next.y
-        const wall_idx = indexOfGreaterThan(col.items, next.y) orelse return false;
+        const wall_idx = indexOfWall(col.items, next.y) orelse return false;
         const wall_y = col.items[wall_idx];
+        if (wall_y == 0) return false;
 
         // can it go left or right
         const left_col = map.get(next.x - 1) orelse return false;
@@ -82,12 +83,16 @@ pub fn main() !void {
 
     var lines = std.mem.tokenize(u8, all, "\n");
 
+    var y_max: pointTy = 0;
+
     while (lines.next()) |line| {
         var points = std.mem.tokenize(u8, line, " -> ");
         var previous = try Point.read(points.next().?);
         try addPoint(allocator, &map, previous);
+        y_max = std.math.max(y_max, previous.y);
         while (points.next()) |point| {
             const next = try Point.read(point);
+            y_max = std.math.max(y_max, next.y);
             if (previous.x != next.x) {
                 std.debug.assert(previous.y == next.y);
                 const direction = std.math.sign(next.x - previous.x);
@@ -115,5 +120,14 @@ pub fn main() !void {
     var count: pointTy = 0;
     while (try dropSand(&map)) : (count += 1) {}
 
-    print("1: {}\n2: {s}\n", .{ count, "TODO" });
+    const one = count;
+
+    const floor = y_max + 2;
+    var floor_x = 500 - floor;
+    while (floor_x != 500 + floor + 1) : (floor_x += 1) {
+        try addPoint(allocator, &map, Point{ .x = floor_x, .y = floor });
+    }
+    while (try dropSand(&map)) : (count += 1) {}
+
+    print("1: {}\n2: {}\n", .{ one, count });
 }
