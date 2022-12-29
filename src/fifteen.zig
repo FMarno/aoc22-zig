@@ -7,6 +7,15 @@ const Int = i32;
 const Range = struct {
     start: Int,
     end: Int,
+
+    fn overlapsWith(self: Range, other: Range) bool {
+        return !(self.end < other.start or other.end < self.start);
+    }
+
+    fn merge(self: *Range, other: Range) void {
+        self.start = std.math.min(self.start, other.start);
+        self.end = std.math.max(self.end, other.end);
+    }
 };
 
 const RangeList = std.ArrayList(Range);
@@ -15,24 +24,48 @@ fn manhattan(sx: Int, sy: Int, bx: Int, by: Int) !i32 {
     return (try std.math.absInt(sx - bx)) + (try std.math.absInt(sy - by));
 }
 
+const Sensor = struct {
+    x: Int,
+    y: Int,
+    d: Int,
+};
+const SensorList = std.ArrayList(Sensor);
+
 fn addRange(ranges: *RangeList, new_range: Range) !void {
-    for (ranges.items) |*range| {
+    for (ranges.items) |*range, idx| {
         // check for any overlap
-        if (new_range.end < range.start or range.end < new_range.start) continue;
-        range.start = std.math.min(range.start, new_range.start);
-        range.end = std.math.max(range.end, new_range.end);
-        return;
+        if (range.overlapsWith(new_range)) {
+            range.merge(new_range);
+            while (idx + 1 != ranges.items.len and range.overlapsWith(ranges.items[idx + 1])) {
+                range.merge(ranges.items[idx + 1]);
+                _ = ranges.orderedRemove(idx + 1);
+            }
+            return;
+        } else if (new_range.start < range.start) {
+            try ranges.insert(idx, new_range);
+            return;
+        }
     }
     try ranges.append(new_range);
 }
 
 fn countRange(ranges: RangeList) Int {
     var count: Int = 0;
-    count += @intCast(Int,ranges.items.len); // range is inclusive
     for (ranges.items) |range| {
         count += range.end - range.start;
     }
     return count;
+}
+
+fn getRanges(ranges: *RangeList, sensors: []Sensor, y: Int) !void {
+    ranges.clearRetainingCapacity();
+    for (sensors) |sensor| {
+        const delta_y = try std.math.absInt(y - sensor.y);
+        if (sensor.d >= delta_y) {
+            const extra = sensor.d - delta_y;
+            try addRange(ranges, Range{ .start = sensor.x - extra, .end = sensor.x + extra });
+        }
+    }
 }
 
 pub fn main() !void {
@@ -40,13 +73,12 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var all = try utils.readAll(allocator, "input/fifteen");
+    const filename = "input/fifteen";
+    var all = try utils.readAll(allocator, filename);
     defer allocator.free(all);
 
-    var ranges = RangeList.init(allocator);
-    defer ranges.deinit();
-
-    const target_line = 2000000;
+    var sensors = SensorList.init(allocator);
+    defer sensors.deinit();
 
     var lines = std.mem.tokenize(u8, all, "\n");
     while (lines.next()) |line| {
@@ -69,14 +101,20 @@ pub fn main() !void {
         const by = try parse(Int, line[y2..], 10);
 
         var md = try manhattan(sx, sy, bx, by);
-        var delta_y = try std.math.absInt(target_line - sy);
-        if (md >= delta_y) {
-            const extra = md - delta_y;
-            try addRange(&ranges, Range{ .start = sx - extra, .end = sx + extra });
-        }
+
+        try sensors.append(Sensor{ .x = sx, .y = sy, .d = md });
     }
 
+    var ranges = RangeList.init(allocator);
+    defer ranges.deinit();
+    const target_line: Int = if (std.mem.eql(u8, "input/test", filename)) 10 else 2000000;
+
+    try getRanges(&ranges, sensors.items, target_line);
     const one = countRange(ranges);
 
-    print("1: {}\n2: {s}\n", .{ one, "TODO" });
+    print("1: {}\n", .{one});
+
+    for (sensors.items) |s|{
+        print("{}\n", .{s.d});
+    }
 }
