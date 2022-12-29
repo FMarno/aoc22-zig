@@ -114,7 +114,15 @@ pub fn main() !void {
 
     print("1: {}\n", .{one});
 
-    for (sensors.items) |s|{
-        print("{}\n", .{s.d});
+    var i: Int = 0;
+    while (i < 4000001) : (i += 1) {
+        try getRanges(&ranges, sensors.items, i);
+        if (ranges.items.len != 1) { // could technically be at an edge but I'll risk it
+            const y = @intCast(u64, i);
+            const x = @intCast(u64, ranges.items[0].end + 1);
+            print("2: {}\n", .{x * 4000000 + y});
+            return;
+        }
     }
+    unreachable;
 }
