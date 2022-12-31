@@ -3,18 +3,26 @@ const utils = @import("utils.zig");
 const parse = std.fmt.parseInt;
 const print = std.debug.print;
 
+const Action = enum { move, open };
+
 const UInt = u32;
 const State = struct {
     location: usize,
+    elephant_location: usize,
     valves: std.bit_set.IntegerBitSet(64),
     time: u5,
 
-    fn changeLocation(self: State, new_location: usize) State {
-        return State{ .location = new_location, .valves = self.valves, .time = self.time - 1 };
-    }
-    fn openValve(self: State, valve: usize) State {
-        var new = State{ .location = self.location, .valves = self.valves, .time = self.time - 1 };
-        new.valves.set(valve);
+    fn update(self: State, my_action: Action, my_arg: usize, ele_action: Action, ele_arg: usize) State {
+        var new = self;
+        new.time -= 1;
+        switch (my_action) {
+            .move => new.location = my_arg,
+            .open => new.valves.set(my_arg),
+        }
+        switch (ele_action) {
+            .move => new.elephant_location = ele_arg,
+            .open => new.valves.set(ele_arg),
+        }
         return new;
     }
 };
@@ -31,11 +39,11 @@ fn potential(cache: *Cache, map: Map, state: State) !UInt {
     if (cache.get(state)) |p| return p;
     var max_potential: UInt = 0;
     if (!state.valves.isSet(state.location)) {
-        const p = map.flow_rates[state.location] * (state.time - 1) + try potential(cache, map, state.openValve(state.location));
+        const p = map.flow_rates[state.location] * (state.time - 1) + try potential(cache, map, state.update(.open, state.location, .move, 0));
         max_potential = std.math.max(max_potential, p);
     }
     for (map.tunnels[state.location]) |tunnel| {
-        max_potential = std.math.max(max_potential, try potential(cache, map, state.changeLocation(tunnel)));
+        max_potential = std.math.max(max_potential, try potential(cache, map, state.update(.move, tunnel, .move, 0)));
     }
     try cache.put(state, max_potential);
     return max_potential;
@@ -107,7 +115,9 @@ pub fn main() !void {
     var cache = Cache.init(allocator);
     defer cache.deinit();
 
-    var state = State{ .location = location_indexes.get("AA").?, .time = 30, .valves = std.bit_set.IntegerBitSet(64).initEmpty() };
+    const start = location_indexes.get("AA").?;
+    var state = State{ .location = start, .elephant_location = start, .time = 30, .valves = std.bit_set.IntegerBitSet(64).initEmpty() };
+    std.debug.assert(location_indexes.count() <= state.valves.capacity());
     for (map.flow_rates) |f, idx| {
         if (f == 0) {
             state.valves.set(idx);
