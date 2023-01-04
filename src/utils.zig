@@ -29,3 +29,13 @@ pub fn freeLines(allocator: std.mem.Allocator, lines: [][]u8) void {
     }
     allocator.free(lines);
 }
+
+pub fn orderedInsert(comptime T: type, list: *std.ArrayList(T), value: T, comptime lessThan: fn (a: T, b: T) bool) !void {
+    for (list.items) |item, idx| {
+        if (lessThan(value, item)) {
+            try list.insert(idx, value);
+            return;
+        }
+    }
+    try list.append(value);
+}
