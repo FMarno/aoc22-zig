@@ -20,7 +20,8 @@ const State = struct {
         for (flow_rate) |f, idx| {
             if (!self.valves.isSet(idx)) {
                 const distance = std.math.min(distances[self.location][idx], distances[self.elephant_location][idx]);
-                const time_to_turn = distance + 1 + (turns / 2);
+                //const time_to_turn = distance + 1 + (turns / 2);
+                const time_to_turn = distance + 2 + (turns / 2);
                 if (time_to_turn < self.time) {
                     const remaining_time = self.time - time_to_turn;
                     sum += f * remaining_time;
